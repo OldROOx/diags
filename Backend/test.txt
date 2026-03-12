@@ -1,0 +1,546 @@
+================================================================================
+  BROKEN TUNES – BACKEND
+  Descripción de los 50 Casos de Prueba Unitaria
+  Framework: pytest | Lenguaje: Python 3
+================================================================================
+
+Ubicación de los tests: Backend/tests/
+Comando de ejecución:   cd Backend/ && pytest tests/ -v
+Generador de PDF:       cd Backend/ && python generate_report.py
+
+================================================================================
+  GRUPO 1 – EXCEPCIONES DEL DOMINIO (test_exceptions.py) | Tests T01–T06
+================================================================================
+
+T01 – test_T1_broken_tunes_error_es_exception
+  Archivo : tests/test_exceptions.py
+  Clase   : (módulo)
+  Objetivo: Verificar que BrokenTunesError hereda directamente de la clase base
+            Exception de Python.
+  Razón   : Al ser subclase de Exception, cualquier capa del sistema puede
+            capturar errores del dominio con "except BrokenTunesError" sin
+            necesitar conocer los tipos concretos.
+  Técnica : issubclass(BrokenTunesError, Exception)
+
+──────────────────────────────────────────────────────────────────────────────
+
+T02 – test_T2_song_not_found_error_hereda_de_broken_tunes_error
+  Archivo : tests/test_exceptions.py
+  Objetivo: Verificar que SongNotFoundError hereda de BrokenTunesError.
+  Razón   : La jerarquía de herencia permite que un manejador genérico de errores
+            del dominio capture todas las excepciones propias sin conocerlas
+            individualmente.
+  Técnica : issubclass(SongNotFoundError, BrokenTunesError)
+
+──────────────────────────────────────────────────────────────────────────────
+
+T03 – test_T3_song_not_found_error_atributo_y_mensaje
+  Archivo : tests/test_exceptions.py
+  Objetivo: Verificar que SongNotFoundError(99) almacena el id en .song_id
+            y que el mensaje str() de la excepción contiene "99".
+  Razón   : Los manejadores de errores deben poder extraer el id sin parsear
+            el mensaje de texto; y el mensaje debe identificar el recurso
+            fallido para facilitar el debugging.
+  Técnica : Instanciar SongNotFoundError(99), assert error.song_id == 99,
+            assert "99" in str(error)
+
+──────────────────────────────────────────────────────────────────────────────
+
+T04 – test_T4_backup_not_found_error_atributo_y_mensaje
+  Archivo : tests/test_exceptions.py
+  Objetivo: Verificar que BackupNotFoundError(42) es subclase de BrokenTunesError,
+            almacena .backup_id == 42 y contiene "42" en el mensaje.
+  Razón   : Análogo a T03, pero para backups. Garantiza consistencia en la
+            jerarquía y en el acceso a metadatos del error.
+  Técnica : issubclass + atributo + contenido del mensaje
+
+──────────────────────────────────────────────────────────────────────────────
+
+T05 – test_T5_empty_audio_error_incluye_nombre_recurso
+  Archivo : tests/test_exceptions.py
+  Objetivo: Verificar que EmptyAudioError("canción id=7") es subclase de
+            BrokenTunesError y que el mensaje incluye el nombre del recurso.
+  Razón   : El nombre del recurso en el mensaje permite a los logs identificar
+            exactamente qué elemento no tenía datos de audio.
+  Técnica : issubclass + assert resource in str(error)
+
+──────────────────────────────────────────────────────────────────────────────
+
+T06 – test_T6_duplicate_song_error_incluye_titulo_y_artista
+  Archivo : tests/test_exceptions.py
+  Objetivo: Verificar que DuplicateSongError("Bohemian Rhapsody", "Queen")
+            es subclase de BrokenTunesError y que el mensaje incluye ambos
+            el título y el artista.
+  Razón   : El usuario o el log debe saber cuál combinación (título+artista)
+            causó la violación de clave única.
+  Técnica : issubclass + assert title in str(error) + assert artist in str(error)
+
+
+================================================================================
+  GRUPO 2 – CONFIGURACIÓN (test_config.py) | Tests T07–T11
+================================================================================
+
+T07 – test_T7_db_params_devuelve_dict
+  Archivo : tests/test_config.py
+  Objetivo: Verificar que Config.db_params() retorna un objeto de tipo dict.
+  Razón   : mysql-connector-python espera un diccionario como parámetros de
+            conexión. Si el tipo fuera incorrecto, la conexión fallaría en
+            tiempo de ejecución con un error poco descriptivo.
+  Técnica : isinstance(Config.db_params(), dict)
+
+──────────────────────────────────────────────────────────────────────────────
+
+T08 – test_T8_db_params_contiene_claves_requeridas
+  Archivo : tests/test_config.py
+  Objetivo: Verificar que el dict de Config.db_params() contiene las claves
+            "host", "user", "password" y "database".
+  Razón   : Estas son exactamente las claves que mysql-connector-python requiere.
+            Si faltara alguna, la conexión lanzaría un TypeError en tiempo de
+            ejecución, difícil de rastrear.
+  Técnica : set.issubset sobre el resultado de db_params()
+
+──────────────────────────────────────────────────────────────────────────────
+
+T09 – test_T9_debug_por_defecto_es_false
+  Archivo : tests/test_config.py
+  Objetivo: Verificar que Config.DEBUG es de tipo bool y es False cuando
+            la variable de entorno FLASK_DEBUG no está definida.
+  Razón   : Correr Flask en modo debug en producción expone el debugger
+            interactivo de Werkzeug, lo que es una vulnerabilidad crítica.
+            El default seguro es False.
+  Técnica : isinstance(Config.DEBUG, bool) + comparación condicional
+
+──────────────────────────────────────────────────────────────────────────────
+
+T10 – test_T10_host_por_defecto_es_0000
+  Archivo : tests/test_config.py
+  Objetivo: Verificar que Config.HOST == "0.0.0.0" cuando FLASK_HOST no está
+            definido en el entorno.
+  Razón   : "0.0.0.0" permite que el servidor acepte conexiones desde cualquier
+            interfaz, necesario para entornos Docker o CI donde el servidor
+            debe ser accesible externamente.
+  Técnica : Comparación directa si os.getenv("FLASK_HOST") is None
+
+──────────────────────────────────────────────────────────────────────────────
+
+T11 – test_T11_port_por_defecto_es_5000_y_es_entero
+  Archivo : tests/test_config.py
+  Objetivo: Verificar que Config.PORT es de tipo int con valor 5000 por defecto.
+  Razón   : Flask.run() requiere un entero para el puerto. Si fuera un string
+            "5000" lanzaría TypeError al iniciar la aplicación.
+  Técnica : isinstance(Config.PORT, int) + comparación condicional
+
+
+================================================================================
+  GRUPO 3 – SERVICIO DE CANCIONES (test_song_service.py) | Tests T12–T23
+================================================================================
+
+T12 – test_T12_list_songs_devuelve_lista_vacia
+  Archivo : tests/test_song_service.py
+  Objetivo: Verificar que SongService.list_songs() devuelve [] cuando el
+            repositorio no tiene canciones.
+  Técnica : Inyectar MagicMock con get_all.return_value = []; assert result == []
+
+──────────────────────────────────────────────────────────────────────────────
+
+T13 – test_T13_list_songs_devuelve_datos_del_repo
+  Archivo : tests/test_song_service.py
+  Objetivo: Verificar que list_songs() retorna sin modificar la lista del repo,
+            preservando id, title y artist.
+  Técnica : MagicMock con lista de dicts; assert result == lista_esperada
+
+──────────────────────────────────────────────────────────────────────────────
+
+T14 – test_T14_list_songs_llama_get_all_del_repo
+  Archivo : tests/test_song_service.py
+  Objetivo: Verificar que list_songs() delega exactamente a repo.get_all()
+            (una sola llamada, sin lógica de acceso a datos propia).
+  Técnica : mock_repo.get_all.assert_called_once()
+
+──────────────────────────────────────────────────────────────────────────────
+
+T15 – test_T15_get_audio_devuelve_dict_cuando_song_existe
+  Archivo : tests/test_song_service.py
+  Objetivo: Verificar que get_audio(id) retorna el dict completo (incluyendo
+            mp3_data) cuando la canción existe y tiene audio válido.
+  Técnica : MagicMock con get_by_id.return_value = song_dict_con_audio;
+            assert result == song_dict
+
+──────────────────────────────────────────────────────────────────────────────
+
+T16 – test_T16_get_audio_lanza_song_not_found_cuando_no_existe
+  Archivo : tests/test_song_service.py
+  Objetivo: Verificar que get_audio(id) lanza SongNotFoundError con el id
+            correcto cuando el repositorio devuelve None.
+  Técnica : mock get_by_id = None; pytest.raises(SongNotFoundError);
+            assert exc_info.value.song_id == 999
+
+──────────────────────────────────────────────────────────────────────────────
+
+T17 – test_T17_get_audio_lanza_empty_audio_cuando_mp3_data_es_bytes_vacios
+  Archivo : tests/test_song_service.py
+  Objetivo: Verificar que get_audio() lanza EmptyAudioError si mp3_data = b"".
+  Razón   : Bytes vacíos son falsy en Python; la condición if not song["mp3_data"]
+            los captura correctamente y evita devolver audio roto.
+  Técnica : mock con mp3_data=b""; pytest.raises(EmptyAudioError)
+
+──────────────────────────────────────────────────────────────────────────────
+
+T18 – test_T18_get_audio_lanza_empty_audio_cuando_mp3_data_es_none
+  Archivo : tests/test_song_service.py
+  Objetivo: Verificar que get_audio() lanza EmptyAudioError si mp3_data = None.
+  Técnica : mock con mp3_data=None; pytest.raises(EmptyAudioError)
+
+──────────────────────────────────────────────────────────────────────────────
+
+T19 – test_T19_add_song_devuelve_id_del_repo
+  Archivo : tests/test_song_service.py
+  Objetivo: Verificar que add_song() devuelve el entero que retorna repo.insert()
+            (el lastrowid de la canción nueva).
+  Técnica : mock insert.return_value = 42; assert service.add_song(...) == 42
+
+──────────────────────────────────────────────────────────────────────────────
+
+T20 – test_T20_add_song_lanza_duplicate_cuando_integrity_error
+  Archivo : tests/test_song_service.py
+  Objetivo: Verificar que si repo.insert() lanza IntegrityError de MySQL,
+            add_song() lo convierte en DuplicateSongError del dominio.
+  Razón   : Evita que detalles de implementación (MySQL) escapen a la capa
+            de rutas y al cliente HTTP.
+  Técnica : mock insert.side_effect = IntegrityError(); pytest.raises(DuplicateSongError)
+
+──────────────────────────────────────────────────────────────────────────────
+
+T21 – test_T21_add_song_strip_titulo
+  Archivo : tests/test_song_service.py
+  Objetivo: Verificar que add_song() aplica .strip() al título antes de insertar.
+  Razón   : "  My Song  " y "My Song" deben mapearse al mismo registro para
+            evitar duplicados por espacios accidentales.
+  Técnica : Llamar add_song("  My Song  ", ...) y verificar que repo.insert
+            fue llamado con "My Song"
+
+──────────────────────────────────────────────────────────────────────────────
+
+T22 – test_T22_add_song_strip_artista
+  Archivo : tests/test_song_service.py
+  Objetivo: Verificar que add_song() aplica .strip() al artista.
+  Técnica : Análogo a T21 para el segundo argumento del artista.
+
+──────────────────────────────────────────────────────────────────────────────
+
+T23 – test_T23_add_song_llama_insert_con_args_correctos
+  Archivo : tests/test_song_service.py
+  Objetivo: Verificar que add_song() llama repo.insert() exactamente con
+            (title_stripped, artist_stripped, mp3_data) en ese orden.
+  Técnica : mock_repo.insert.assert_called_once_with("Clean Title", "Clean Artist", audio)
+
+
+================================================================================
+  GRUPO 4 – SERVICIO DE BACKUPS (test_backup_service.py) | Tests T24–T36
+================================================================================
+
+T24 – test_T24_list_backups_devuelve_lista_vacia
+  Archivo : tests/test_backup_service.py
+  Objetivo: Verificar que BackupService.list_backups() devuelve [] cuando
+            backup_repo.get_all() retorna [].
+  Técnica : MagicMock backup_repo con get_all.return_value=[]; assert == []
+
+──────────────────────────────────────────────────────────────────────────────
+
+T25 – test_T25_list_backups_devuelve_datos_del_repo
+  Archivo : tests/test_backup_service.py
+  Objetivo: Verificar que list_backups() devuelve sin modificar la lista de
+            backups del repo, con todos sus campos.
+  Técnica : MagicMock con lista de dicts de backup; assert result == backups
+
+──────────────────────────────────────────────────────────────────────────────
+
+T26 – test_T26_backup_song_lanza_song_not_found_cuando_no_existe
+  Archivo : tests/test_backup_service.py
+  Objetivo: Verificar que backup_song() lanza SongNotFoundError cuando
+            song_repo.get_by_id() devuelve None.
+  Técnica : mock get_by_id=None; pytest.raises(SongNotFoundError)
+
+──────────────────────────────────────────────────────────────────────────────
+
+T27 – test_T27_backup_song_devuelve_backup_id
+  Archivo : tests/test_backup_service.py
+  Objetivo: Verificar que backup_song() devuelve el id generado por
+            backup_repo.insert() cuando la canción existe.
+  Técnica : mock song + mock backup insert.return_value=77; assert == 77
+
+──────────────────────────────────────────────────────────────────────────────
+
+T28 – test_T28_backup_song_pasa_original_song_id_correcto
+  Archivo : tests/test_backup_service.py
+  Objetivo: Verificar que backup_song() pasa original_song_id=song["id"] al
+            backup_repo.insert(), manteniendo la referencia de auditoría.
+  Técnica : Verificar kwargs de la llamada a backup_repo.insert()
+
+──────────────────────────────────────────────────────────────────────────────
+
+T29 – test_T29_backup_song_copia_titulo_y_artista
+  Archivo : tests/test_backup_service.py
+  Objetivo: Verificar que el título y artista de la canción original se copian
+            exactamente al backup.
+  Técnica : assert kwargs["title"] == "My Title" y kwargs["artist"] == "My Artist"
+
+──────────────────────────────────────────────────────────────────────────────
+
+T30 – test_T30_backup_song_copia_mp3_data
+  Archivo : tests/test_backup_service.py
+  Objetivo: Verificar que los bytes de mp3_data de la canción original se
+            copian al backup para que sea una copia fiel del audio.
+  Técnica : assert kwargs["mp3_data"] == audio_original
+
+──────────────────────────────────────────────────────────────────────────────
+
+T31 – test_T31_backup_song_pasa_note_y_backed_by
+  Archivo : tests/test_backup_service.py
+  Objetivo: Verificar que los parámetros de auditoría 'note' y 'backed_by'
+            se transmiten sin modificar a backup_repo.insert().
+  Técnica : assert kwargs["note"] == "backup semanal" + assert kwargs["backed_by"]
+
+──────────────────────────────────────────────────────────────────────────────
+
+T32 – test_T32_get_audio_backup_devuelve_dict_cuando_existe
+  Archivo : tests/test_backup_service.py
+  Objetivo: Verificar que BackupService.get_audio(id) retorna el dict del
+            backup cuando existe y tiene mp3_data válido.
+  Técnica : mock backup con mp3_data=b"backup_audio"; assert result == backup
+
+──────────────────────────────────────────────────────────────────────────────
+
+T33 – test_T33_get_audio_backup_lanza_backup_not_found_cuando_no_existe
+  Archivo : tests/test_backup_service.py
+  Objetivo: Verificar que get_audio() lanza BackupNotFoundError con backup_id
+            correcto cuando backup_repo.get_by_id() devuelve None.
+  Técnica : pytest.raises(BackupNotFoundError); assert exc.backup_id == 888
+
+──────────────────────────────────────────────────────────────────────────────
+
+T34 – test_T34_get_audio_backup_lanza_empty_audio_cuando_vacio
+  Archivo : tests/test_backup_service.py
+  Objetivo: Verificar que get_audio() lanza EmptyAudioError si el backup
+            tiene mp3_data = b"".
+  Técnica : mock con mp3_data=b""; pytest.raises(EmptyAudioError)
+
+──────────────────────────────────────────────────────────────────────────────
+
+T35 – test_T35_store_uploaded_backup_devuelve_id
+  Archivo : tests/test_backup_service.py
+  Objetivo: Verificar que store_uploaded_backup() devuelve el id generado por
+            backup_repo.insert().
+  Técnica : mock insert.return_value=55; assert service.store_uploaded_backup() == 55
+
+──────────────────────────────────────────────────────────────────────────────
+
+T36 – test_T36_store_uploaded_backup_usa_original_song_id_none
+  Archivo : tests/test_backup_service.py
+  Objetivo: Verificar que store_uploaded_backup() llama a backup_repo.insert()
+            con original_song_id=None, indicando que el backup no tiene canción
+            original en la base de datos.
+  Razón   : Este método se usa para importar archivos externos desde upload_to_db.py;
+            los backups externos no tienen referencia a songs.
+  Técnica : assert kwargs["original_song_id"] is None
+
+
+================================================================================
+  GRUPO 5 – RUTAS DE CANCIONES (test_song_routes.py) | Tests T37–T43
+================================================================================
+
+Nota: Todos los tests de rutas usan el fixture `client` (Flask test client)
+y parchean `routes.song_routes._service` con unittest.mock.patch para
+evitar acceso real a la base de datos.
+
+──────────────────────────────────────────────────────────────────────────────
+
+T37 – test_T37_get_songs_devuelve_200
+  Archivo : tests/test_song_routes.py
+  Endpoint: GET /api/songs
+  Objetivo: Verificar que la ruta responde con HTTP 200 cuando el servicio
+            devuelve una lista de canciones (incluso vacía).
+  Técnica : patch _service.list_songs=[]; assert response.status_code == 200
+
+──────────────────────────────────────────────────────────────────────────────
+
+T38 – test_T38_get_songs_devuelve_lista_json
+  Archivo : tests/test_song_routes.py
+  Endpoint: GET /api/songs
+  Objetivo: Verificar que la respuesta es un array JSON (no objeto) y contiene
+            los datos de las canciones.
+  Técnica : response.get_json(); isinstance(data, list); assert data[0]["id"] == 1
+
+──────────────────────────────────────────────────────────────────────────────
+
+T39 – test_T39_get_songs_devuelve_datos_del_servicio
+  Archivo : tests/test_song_routes.py
+  Endpoint: GET /api/songs
+  Objetivo: Verificar que la ruta serializa y devuelve exactamente lo que
+            retorna el servicio, sin filtrar ni transformar los datos.
+  Técnica : assert response.get_json() == lista_canciones_mock
+
+──────────────────────────────────────────────────────────────────────────────
+
+T40 – test_T40_play_song_devuelve_200_y_audio_mpeg
+  Archivo : tests/test_song_routes.py
+  Endpoint: GET /play/1
+  Objetivo: Verificar que una canción válida se sirve con HTTP 200 y
+            Content-Type "audio/mpeg".
+  Técnica : patch _service.get_audio=song_con_audio;
+            assert status==200 + "audio/mpeg" in content_type
+
+──────────────────────────────────────────────────────────────────────────────
+
+T41 – test_T41_play_song_con_id_no_entero_devuelve_400
+  Archivo : tests/test_song_routes.py
+  Endpoint: GET /play/abc
+  Objetivo: Verificar que un id no numérico retorna HTTP 400 con campo "error"
+            en el JSON, antes de llegar al servicio.
+  Técnica : client.get("/play/abc"); assert status==400; "error" in data
+
+──────────────────────────────────────────────────────────────────────────────
+
+T42 – test_T42_play_song_con_id_cero_devuelve_400
+  Archivo : tests/test_song_routes.py
+  Endpoint: GET /play/0
+  Objetivo: Verificar que id=0 retorna HTTP 400, ya que los ids válidos
+            comienzan en 1 (auto-increment).
+  Técnica : client.get("/play/0"); assert status==400
+
+──────────────────────────────────────────────────────────────────────────────
+
+T43 – test_T43_play_song_cuando_no_existe_devuelve_404
+  Archivo : tests/test_song_routes.py
+  Endpoint: GET /play/999
+  Objetivo: Verificar que cuando el servicio lanza SongNotFoundError,
+            la ruta responde con HTTP 404 y JSON con campo "error".
+  Técnica : patch get_audio.side_effect=SongNotFoundError(999);
+            assert status==404; "error" in data
+
+
+================================================================================
+  GRUPO 6 – RUTAS DE BACKUPS (test_backup_routes.py) | Tests T44–T50
+================================================================================
+
+Nota: Todos usan el fixture `client` y parchean `routes.backup_routes._service`.
+
+──────────────────────────────────────────────────────────────────────────────
+
+T44 – test_T44_get_backups_devuelve_200
+  Archivo : tests/test_backup_routes.py
+  Endpoint: GET /api/songs_backup
+  Objetivo: Verificar que la ruta de listado de backups responde con HTTP 200.
+  Técnica : patch list_backups=[]; assert status==200
+
+──────────────────────────────────────────────────────────────────────────────
+
+T45 – test_T45_get_backups_devuelve_lista_json
+  Archivo : tests/test_backup_routes.py
+  Endpoint: GET /api/songs_backup
+  Objetivo: Verificar que la respuesta es un array JSON con los datos completos
+            de los backups (id, original_song_id, title, artist, etc.).
+  Técnica : isinstance(data, list) + assert data[0]["id"] == 1
+
+──────────────────────────────────────────────────────────────────────────────
+
+T46 – test_T46_post_backup_retorna_ok_true_y_backup_id
+  Archivo : tests/test_backup_routes.py
+  Endpoint: POST /api/backup/1
+  Objetivo: Verificar que crear un backup devuelve HTTP 200 con
+            {"ok": True, "backup_id": N}.
+  Técnica : patch backup_song.return_value=99; assert data["ok"] is True +
+            assert data["backup_id"] == 99
+
+──────────────────────────────────────────────────────────────────────────────
+
+T47 – test_T47_post_backup_cuando_cancion_no_existe_retorna_404
+  Archivo : tests/test_backup_routes.py
+  Endpoint: POST /api/backup/777
+  Objetivo: Verificar que si la canción no existe, la ruta responde con
+            HTTP 404 y {"ok": False, "error": "..."}.
+  Técnica : patch backup_song.side_effect=SongNotFoundError(777);
+            assert status==404; data["ok"] is False
+
+──────────────────────────────────────────────────────────────────────────────
+
+T48 – test_T48_post_backup_pasa_note_del_formulario
+  Archivo : tests/test_backup_routes.py
+  Endpoint: POST /api/backup/1
+  Objetivo: Verificar que los campos "note" y "backed_by" del form data se
+            pasan correctamente como kwargs al servicio.
+  Técnica : client.post(..., data={"note": "backup urgente", "backed_by": "devops"});
+            assert call_kwargs["note"] == "backup urgente"
+
+──────────────────────────────────────────────────────────────────────────────
+
+T49 – test_T49_play_backup_devuelve_200_y_audio_mpeg
+  Archivo : tests/test_backup_routes.py
+  Endpoint: GET /play_backup/1
+  Objetivo: Verificar que un backup válido con audio se sirve con HTTP 200
+            y Content-Type "audio/mpeg".
+  Técnica : patch get_audio.return_value=backup_con_audio;
+            assert status==200 + "audio/mpeg" in content_type
+
+──────────────────────────────────────────────────────────────────────────────
+
+T50 – test_T50_play_backup_cuando_no_existe_devuelve_404
+  Archivo : tests/test_backup_routes.py
+  Endpoint: GET /play_backup/999
+  Objetivo: Verificar que cuando el servicio lanza BackupNotFoundError,
+            la ruta responde con HTTP 404 y JSON con campo "error".
+  Razón   : Comportamiento análogo a T43 para canciones; garantiza manejo
+            consistente de errores 404 en toda la API.
+  Técnica : patch get_audio.side_effect=BackupNotFoundError(999);
+            assert status==404; "error" in data
+
+
+================================================================================
+  CÓMO EJECUTAR LAS PRUEBAS Y GENERAR EL PDF
+================================================================================
+
+1. Instalar dependencias:
+   pip install pytest reportlab
+
+2. Ejecutar solo los tests (desde Backend/):
+   pytest tests/ -v
+
+3. Ejecutar tests Y generar el PDF del reporte (desde Backend/):
+   python generate_report.py
+
+4. El PDF se guarda en:
+   Backend/reporte_pruebas.pdf
+
+================================================================================
+  ESTRUCTURA DE ARCHIVOS DE PRUEBA
+================================================================================
+
+Backend/
+├── tests/
+│   ├── __init__.py              (paquete de tests)
+│   ├── conftest.py              (sys.path + fixture Flask client)
+│   ├── test_exceptions.py       (T01–T06: módulo exceptions)
+│   ├── test_config.py           (T07–T11: módulo config)
+│   ├── test_song_service.py     (T12–T23: SongService)
+│   ├── test_backup_service.py   (T24–T36: BackupService)
+│   ├── test_song_routes.py      (T37–T43: rutas /api/songs y /play)
+│   └── test_backup_routes.py    (T44–T50: rutas /api/songs_backup y backups)
+├── generate_report.py           (ejecuta pytest + genera PDF)
+└── test.txt                     (este archivo)
+
+================================================================================
+  RESUMEN DE COBERTURA POR MÓDULO
+================================================================================
+
+Módulo                          Tests  Rango
+─────────────────────────────────────────────
+exceptions.py                     6    T01–T06
+config.py                         5    T07–T11
+services/song_service.py         12    T12–T23
+services/backup_service.py       13    T24–T36
+routes/song_routes.py             7    T37–T43
+routes/backup_routes.py           7    T44–T50
+─────────────────────────────────────────────
+TOTAL                            50    T01–T50
+
+================================================================================
